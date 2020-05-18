@@ -5,6 +5,7 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from scipy.spatial import KDTree
 import math
+import numpy as np
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -46,7 +47,35 @@ class WaypointUpdater(object):
 
         
     def loop(self):
-        pass
+        # looping over per 50Hz
+        rate = rospy.Rate(50)
+        while not rospy.is_shutdown():
+            if self.pose and self.base_waypoints:
+                closest_waypoint_idx = self.get_closest_waypoint_idx()
+                self.publish_waypoints(closest_waypoint_idx)
+            rate.sleep()
+               
+    def get_closest_waypoint_idx(self):
+        x = self.pose.pose.position.x
+        y = self.pose.pose.position.y
+        closest_idx = self.waypoint_tree.query([x, y], 1)[1] # get index from the tree
+        
+        # check the closest is aheah or behind car
+        closest_coordinate = self.waypoints_2d[closest_idx]
+        previous_coordinate = self.waypoints_2d[closest_idx - 1]
+        
+        closest_vector = np.array(closest_coordinate)
+        previous_vector = np.array(previous_coordinate)
+        position_vector = np.array([x, y]) # position vector can be ahead or behind
+        
+        # checking whether they are in same direction or not
+        val_dot_product = np.dot(closest_vector-previous_vector, position_vector-closest_vector)
+        
+        if val_dot_product > 0: # car is ahead
+            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
+        return closest_idx
+        
+        
     def pose_cb(self, msg):
         # TODO: Implement
         pass
